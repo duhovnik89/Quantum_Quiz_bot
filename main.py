@@ -1,34 +1,15 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher#, types
 from aiogram.filters.command import Command
 import aiosqlite
 from aiogram import types
 from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
 from aiogram import F
-
 import nest_asyncio
+import quiz_questions
+quiz_data = quiz_questions.quiz_data
 nest_asyncio.apply()
-
-#======== Структура квиза - список вопросов ==========
-quiz_data = [
-    {
-        'question': 'Что такое Python?',
-        'options': ['Язык программирования', 'Пушной зверёк', 'Музыкальный инструмент', 'Змея на английском'],
-        'correct_option': 0
-    },
-    {
-        'question': 'Сколько человек в классической футбольной команде?',
-        'options': ['6', '10', '11', '12'],
-        'correct_option': 2
-    },
-    {
-        'question': 'Кто написал рассказ "Му-му"?',
-        'options': ['Пушкин', 'Ахматова', 'Тютчев', 'Тургенев'],
-        'correct_option': 3
-    },
-]
-#============ / ============
 
 # Включаем логирование, чтобы не пропустить важные сообщения
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +23,7 @@ bot = Bot(token=API_TOKEN)
 # Диспетчер
 dp = Dispatcher()
 
+
 # Хэндлер на команду /start
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
@@ -50,7 +32,9 @@ async def cmd_start(message: types.Message):
     # Добавляем в сборщик одну кнопку
     builder.add(types.KeyboardButton(text="Начать игру"))
     # Прикрепляем кнопки к сообщению
-    await message.answer("Привет! Готов играть в квиз? Введите /quiz, чтобы начать.", reply_markup=builder.as_markup(resize_keyboard=True))
+    await message.answer("Привет! Готов играть в квиз? Введите /quiz, чтобы начать.",
+                         reply_markup=builder.as_markup(resize_keyboard=True))
+
 
 # Хэндлер на команду /quiz
 @dp.message(F.text=="Начать игру")
@@ -72,6 +56,7 @@ async def new_quiz(message):
     # запрашиваем новый вопрос для квиза
     await get_question(message, user_id)
 
+
 async def get_question(message, user_id):
     # Запрашиваем из базы текущий индекс для вопроса
     current_question_index = await get_quiz_index(user_id)
@@ -86,69 +71,55 @@ async def get_question(message, user_id):
     # Отправляем в чат сообщение с вопросом, прикрепляем сгенерированные кнопки
     await message.answer(f"{quiz_data[current_question_index]['question']}", reply_markup=kb)
 
+
 def generate_options_keyboard(answer_options, right_answer):
   # Создаем сборщика клавиатур типа Inline
     builder = InlineKeyboardBuilder()
 
     # В цикле создаем 4 Inline кнопки, а точнее Callback-кнопки
     for option in answer_options:
+        # В колбэк-данных каждой кнопки передаем: ответ_верный/неверный:<Текст_ответа>
+        callback_data = "answer_" + ("right" if option == right_answer else "wrong") + ":" + option
         builder.add(types.InlineKeyboardButton(
             # Текст на кнопках соответствует вариантам ответов
             text=option,
             # Присваиваем данные для колбэк запроса.
             # Если ответ верный сформируется колбэк-запрос с данными 'right_answer'
             # Если ответ неверный сформируется колбэк-запрос с данными 'wrong_answer'
-            callback_data="right_answer" if option == right_answer else "wrong_answer")
+            callback_data=callback_data)
         )
     # Выводим по одной кнопке в столбик
     builder.adjust(1)
     return builder.as_markup()
 
 
-@dp.callback_query(F.data == "right_answer")
+#@dp.callback_query(F.data == "right_answer")
+@dp.callback_query(F.data.startswith("answer_"))
 async def right_answer(callback: types.CallbackQuery):
     # редактируем текущее сообщение с целью убрать кнопки (reply_markup=None)
     await callback.bot.edit_message_reply_markup(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
-        reply_markup=None
+        reply_markup=None,
     )
 
     # Получение текущего вопроса для данного пользователя
     current_question_index = await get_quiz_index(callback.from_user.id)
 
-    # Отправляем в чат сообщение, что ответ верный
-    await callback.message.answer("Верно!")
+    # Достаем из callback.data текст выбранного ответа и признак верного ответа
+    selected_answer_text = callback.data.split("_")[1].split(":")[1]
+    is_right_answer = callback.data.split("_")[1].split(":")[0]
 
-    # Обновление номера текущего вопроса в базе данных
-    current_question_index += 1
-    await update_quiz_index(callback.from_user.id, current_question_index)
-
-    # Проверяем достигнут ли конец квиза
-    if current_question_index < len(quiz_data):
-        # Следующий вопрос
-        await get_question(callback.message, callback.from_user.id)
+    if is_right_answer == "right":
+        # Отправляем в чат текст выбранного ответа и сообщение, что ответ верный
+        await callback.message.answer(selected_answer_text)
+        await callback.message.answer("Верно!")
     else:
-        # Уведомление об окончании квиза
-        await callback.message.answer("Это был последний вопрос. Квиз завершен!")
-
-
-@dp.callback_query(F.data == "wrong_answer")
-async def wrong_answer(callback: types.CallbackQuery):
-    # редактируем текущее сообщение с целью убрать кнопки (reply_markup=None)
-    await callback.bot.edit_message_reply_markup(
-        chat_id=callback.from_user.id,
-        message_id=callback.message.message_id,
-        reply_markup=None
-    )
-
-    # Получение текущего вопроса для данного пользователя
-    current_question_index = await get_quiz_index(callback.from_user.id)
-
-    correct_option = quiz_data[current_question_index]['correct_option']
-
-    # Отправляем в чат сообщение об ошибке с указанием верного ответа
-    await callback.message.answer(f"Неправильно. Правильный ответ: {quiz_data[current_question_index]['options'][correct_option]}")
+        correct_option = quiz_data[current_question_index]['correct_option']
+        # Отправляем в чат текст выбранного ответа и сообщение об ошибке с указанием верного ответа
+        await callback.message.answer(selected_answer_text)
+        await callback.message.answer(
+            f"Неправильно. Правильный ответ: {quiz_data[current_question_index]['options'][correct_option]}")
 
     # Обновление номера текущего вопроса в базе данных
     current_question_index += 1
@@ -175,6 +146,7 @@ async def create_table():
         # Сохраняем изменения
         await db.commit()
 
+
 async def update_quiz_index(user_id, index):
     # Создаем соединение с базой данных (если она не существует, она будет создана)
     async with aiosqlite.connect(DB_NAME) as db:
@@ -182,6 +154,7 @@ async def update_quiz_index(user_id, index):
         await db.execute('INSERT OR REPLACE INTO quiz_state (user_id, question_index) VALUES (?, ?)', (user_id, index))
         # Сохраняем изменения
         await db.commit()
+
 
 async def get_quiz_index(user_id):
      # Подключаемся к базе данных
@@ -195,6 +168,7 @@ async def get_quiz_index(user_id):
             else:
                 return 0
 #========== / ==========
+
 
 # Запуск процесса поллинга новых апдейтов
 async def main():
