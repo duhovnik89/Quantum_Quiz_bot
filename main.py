@@ -52,14 +52,15 @@ async def new_quiz(message):
     user_id = message.from_user.id
     # сбрасываем значение текущего индекса вопроса квиза в 0
     current_question_index = 0
-    await update_quiz_index(user_id, current_question_index)
+    await update_quiz_index(user_id, current_question_index, 0)
     # запрашиваем новый вопрос для квиза
     await get_question(message, user_id)
 
 
 async def get_question(message, user_id):
-    # Запрашиваем из базы текущий индекс для вопроса
-    current_question_index = await get_quiz_index(user_id)
+    # Запрашиваем из базы текущий индекс для вопроса и текущий счет пользователя
+    #current_question_index = await get_quiz_index(user_id)
+    (current_question_index, current_score) = await get_quiz_index(user_id)
     # Получаем индекс правильного ответа для текущего вопроса
     correct_index = quiz_data[current_question_index]['correct_option']
     # Получаем список вариантов ответа для текущего вопроса
@@ -103,8 +104,9 @@ async def right_answer(callback: types.CallbackQuery):
         reply_markup=None,
     )
 
-    # Получение текущего вопроса для данного пользователя
-    current_question_index = await get_quiz_index(callback.from_user.id)
+    # Получение текущего вопроса для данного пользователя и его счета
+    # Запрашиваем из базы текущий индекс для вопроса и текущий счет пользователя
+    (current_question_index, current_score) = await get_quiz_index(callback.from_user.id)
 
     # Достаем из callback.data текст выбранного ответа и признак верного ответа
     selected_answer_text = callback.data.split("_")[1].split(":")[1]
@@ -114,6 +116,7 @@ async def right_answer(callback: types.CallbackQuery):
         # Отправляем в чат текст выбранного ответа и сообщение, что ответ верный
         await callback.message.answer(selected_answer_text)
         await callback.message.answer("Верно!")
+        current_score += 1
     else:
         correct_option = quiz_data[current_question_index]['correct_option']
         # Отправляем в чат текст выбранного ответа и сообщение об ошибке с указанием верного ответа
@@ -123,7 +126,7 @@ async def right_answer(callback: types.CallbackQuery):
 
     # Обновление номера текущего вопроса в базе данных
     current_question_index += 1
-    await update_quiz_index(callback.from_user.id, current_question_index)
+    await update_quiz_index(callback.from_user.id, current_question_index, current_score)
 
     # Проверяем достигнут ли конец квиза
     if current_question_index < len(quiz_data):
@@ -131,27 +134,34 @@ async def right_answer(callback: types.CallbackQuery):
         await get_question(callback.message, callback.from_user.id)
     else:
         # Уведомление об окончании квиза
-        await callback.message.answer("Это был последний вопрос. Квиз завершен!")
+        await callback.message.answer("Это был последний вопрос. Квиз завершен!\n"
+            + "Ваш счет: " + str(current_score) + " из " + str(len(quiz_data)))
 #========== / ==========
 
 
 #========== БД ==========
-# Создаем таблицу базы данных для хранения номера вопроса,
-# на котором остановился пользователь
+# Создаем таблицу базы данных для хранения номера вопроса, на котором остановился пользователь,
+# и количества очков, набранных за последнюю игру
 async def create_table():
     # Создаем соединение с базой данных (если она не существует, то она будет создана)
     async with aiosqlite.connect(DB_NAME) as db:
         # Выполняем SQL-запрос к базе данных
-        await db.execute('''CREATE TABLE IF NOT EXISTS quiz_state (user_id INTEGER PRIMARY KEY, question_index INTEGER)''')
+        await db.execute('''CREATE TABLE IF NOT EXISTS 
+            quiz_state (
+            user_id INTEGER PRIMARY KEY, 
+            question_index INTEGER, 
+            last_score INTEGER
+            )''')
         # Сохраняем изменения
         await db.commit()
 
 
-async def update_quiz_index(user_id, index):
+async def update_quiz_index(user_id, index, score):
     # Создаем соединение с базой данных (если она не существует, она будет создана)
     async with aiosqlite.connect(DB_NAME) as db:
         # Вставляем новую запись или заменяем ее, если с данным user_id уже существует
-        await db.execute('INSERT OR REPLACE INTO quiz_state (user_id, question_index) VALUES (?, ?)', (user_id, index))
+        await db.execute('INSERT OR REPLACE INTO quiz_state (user_id, question_index, last_score) VALUES (?, ?, ?)',
+                         (user_id, index, score))
         # Сохраняем изменения
         await db.commit()
 
@@ -160,11 +170,11 @@ async def get_quiz_index(user_id):
      # Подключаемся к базе данных
      async with aiosqlite.connect(DB_NAME) as db:
         # Получаем запись для заданного пользователя
-        async with db.execute('SELECT question_index FROM quiz_state WHERE user_id = (?)', (user_id, )) as cursor:
+        async with db.execute('SELECT question_index, last_score FROM quiz_state WHERE user_id = (?)', (user_id, )) as cursor:
             # Возвращаем результат
             results = await cursor.fetchone()
             if results is not None:
-                return results[0]
+                return (results[0], results[1], )
             else:
                 return 0
 #========== / ==========
