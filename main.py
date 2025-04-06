@@ -136,6 +136,16 @@ async def right_answer(callback: types.CallbackQuery):
         # Уведомление об окончании квиза
         await callback.message.answer("Это был последний вопрос. Квиз завершен!\n"
             + "Ваш счет: " + str(current_score) + " из " + str(len(quiz_data)))
+        # Выбод статисики
+        stat_list = await get_quiz_statistics(callback.from_user.id)
+        if len(stat_list) > 0:
+            await callback.message.answer("Статистика по игрокам:\n")
+            stat_str = ""
+            for player in stat_list:
+                #stat_str += "Игрок " + str(await get_username(player[0])) + ": " + str(player[1]) + " очков\n"
+                stat_str += "Игрок " + str(player[0]) + ": " + str(player[1]) + " очков\n"
+            await callback.message.answer(stat_str)
+
 #========== / ==========
 
 
@@ -177,6 +187,20 @@ async def get_quiz_index(user_id):
                 return (results[0], results[1], )
             else:
                 return 0
+
+
+async def get_quiz_statistics(user_id):
+    result_list = []
+    # Подключаемся к базе данных
+    async with aiosqlite.connect(DB_NAME) as db:
+        # Получаем записи для заданного пользователя
+        async with db.execute('SELECT user_id, last_score FROM quiz_state ORDER BY last_score') as cursor:
+            # Возвращаем результат
+            results = await cursor.fetchone()
+            while results is not None:
+                result_list.append([results[0], results[1]])
+                results = await cursor.fetchone()
+            return result_list
 #========== / ==========
 
 
