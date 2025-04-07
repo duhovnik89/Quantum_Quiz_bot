@@ -45,6 +45,10 @@ async def cmd_quiz(message: types.Message):
     # Запускаем новый квиз
     await new_quiz(message)
 
+@dp.message(Command("statistics"))
+async def cmd_statistics(message: types.Message):
+    await show_statistics(message)
+
 
 #======== Логика квиза ========
 async def new_quiz(message):
@@ -136,7 +140,8 @@ async def right_answer(callback: types.CallbackQuery):
         # Уведомление об окончании квиза
         await callback.message.answer("Это был последний вопрос. Квиз завершен!\n"
             + "Ваш счет: " + str(current_score) + " из " + str(len(quiz_data)))
-        # Выбод статисики
+        # Вывод статисики
+        show_statistics(callback.from_user.id)
         stat_list = await get_quiz_statistics(callback.from_user.id)
         if len(stat_list) > 0:
             await callback.message.answer("Статистика по игрокам:\n")
@@ -146,6 +151,24 @@ async def right_answer(callback: types.CallbackQuery):
                 stat_str += "Игрок " + str(player[0]) + ": " + str(player[1]) + " очков\n"
             await callback.message.answer(stat_str)
 
+async def show_statistics(msg_or_clbk):
+    is_mesage = (type(msg_or_clbk) == types.Message)
+    user_id = msg_or_clbk.from_user.id
+    stat_list = await get_quiz_statistics(user_id)
+    if len(stat_list) > 0:
+        if is_mesage:
+            await msg_or_clbk.answer("Статистика по игрокам:\n")
+        else:
+            await msg_or_clbk.message.answer("Статистика по игрокам:\n")
+
+        stat_str = ""
+        for player in stat_list:
+            # stat_str += "Игрок " + str(await get_username(player[0])) + ": " + str(player[1]) + " очков\n"
+            stat_str += "Игрок " + str(player[0]) + ": " + str(player[1]) + " очков\n"
+        if is_mesage:
+            await msg_or_clbk.answer(stat_str)
+        else:
+            await msg_or_clbk.message.answer(stat_str)
 #========== / ==========
 
 
