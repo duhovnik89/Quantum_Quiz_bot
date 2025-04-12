@@ -15,7 +15,7 @@ nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 
 # t.me/Quantum_Quiz_bot
-API_TOKEN = '7093775296:AAGvD6WjQW_ejYHK8zy9Jm_mRTC_WPFLEFo'
+API_TOKEN = '7736539085:AAGoV32t_3j5960cAR88vFjmkHXAARmEDn8'
 DB_NAME = 'quantum_quiz_bot.db'
 
 # Объект бота
@@ -32,7 +32,7 @@ async def cmd_start(message: types.Message):
     # Добавляем в сборщик одну кнопку
     builder.add(types.KeyboardButton(text="Начать игру"))
     # Прикрепляем кнопки к сообщению
-    await message.answer("Привет! Готов играть в квиз? Введите /quiz, чтобы начать.",
+    await message.answer("Привет! Готов играть в квиз? Введи /quiz или нажми ""Начать игру"".",
                          reply_markup=builder.as_markup(resize_keyboard=True))
 
 
