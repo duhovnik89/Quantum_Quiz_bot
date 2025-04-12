@@ -32,7 +32,7 @@ async def cmd_start(message: types.Message):
     # Добавляем в сборщик одну кнопку
     builder.add(types.KeyboardButton(text="Начать игру"))
     # Прикрепляем кнопки к сообщению
-    await message.answer("Привет! Готов играть в квиз? Введи /quiz или нажми ""Начать игру"".",
+    await message.answer("Привет! Готов играть в квиз? Введи /quiz или нажми 'Начать игру'.",
                          reply_markup=builder.as_markup(resize_keyboard=True))
 
 
