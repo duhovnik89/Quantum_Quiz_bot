@@ -28,7 +28,7 @@ async def cmd_start(message: types.Message):
 async def cmd_quiz(message: types.Message):
     await message.answer(f"Давайте начнем квиз!")
 
-    # Отправляем в чат кортинку перед началом квиза
+    # Отправляем в чат картинку перед началом квиза
     img_url = "https://storage.yandexcloud.net/quantum-imgs/Quantum_desc_img.jpg"
     img_id = await message.answer_photo(photo=img_url, caption="Раунд 1")
 
@@ -75,10 +75,12 @@ async def right_answer(callback: types.CallbackQuery):
 
     # Обновление номера текущего вопроса в базе данных
     current_question_index += 1
+    user_id = callback.from_user.id
+    user_name = callback.from_user.full_name
     #if YDB_ENDPOINT == None:
     #    await update_quiz_index_aio(callback.from_user.id, current_question_index, current_score)
     #else:
-    await update_quiz_index(callback.from_user.id, current_question_index, current_score)
+    await update_quiz_index(user_id, current_question_index, current_score, user_name)
 
     # Проверяем достигнут ли конец квиза
     if current_question_index < len(quiz_data):

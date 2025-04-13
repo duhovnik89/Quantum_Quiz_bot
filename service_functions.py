@@ -4,7 +4,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from database import pool, execute_update_query, execute_select_query
 from quiz_questions import quiz_data
 
-DB_NAME = 'quantum_quiz_bot.db'
+#DB_NAME = 'quantum_quiz_bot.db'
 
 
 # Выдаёт набор кнопок с вариантами ответов на вопрос
@@ -28,11 +28,12 @@ def generate_options_keyboard(answer_options, right_answer):
 
 #======== Логика квиза ========
 async def new_quiz(message):
-    # получаем id пользователя, отправившего сообщение
+    # получаем id и имя пользователя, отправившего сообщение
     user_id = message.from_user.id
+    user_name = message.from_user.full_name
     # сбрасываем значение текущего индекса вопроса квиза в 0
     current_question_index = 0
-    await update_quiz_index(user_id, current_question_index, 0)
+    await update_quiz_index(user_id, current_question_index, 0, user_name)
     # запрашиваем новый вопрос для квиза
     await get_question(message, user_id)
 
@@ -65,7 +66,7 @@ async def show_statistics(msg_or_clbk):
     if len(stat_list) > 0:
         stat_str = ""
         for player in stat_list:
-            stat_str += "Игрок " + str(player[0]) + ": " + str(player[1]) + " очков\n"
+            stat_str += str(player[0]) + ": " + str(player[1]) + " очков\n"
         if is_message:
             await msg_or_clbk.answer("Статистика по игрокам:\n" + stat_str)
         else:
@@ -75,15 +76,16 @@ async def show_statistics(msg_or_clbk):
 
 
 #========== Работа с Yandex БД ==========
-async def update_quiz_index(user_id, question_index, score):
+async def update_quiz_index(user_id, question_index, score, user_name):
     # Вставляем новую запись или заменяем ее, если с данным user_id уже существует
     set_quiz_state = f"""
         DECLARE $user_id AS Uint64;
         DECLARE $question_index AS Uint64;
         DECLARE $last_score AS Uint64;
+        DECLARE $user_name AS Utf8;
 
-        UPSERT INTO `quiz_state` (`user_id`, `question_index`, `last_score`)
-        VALUES ($user_id, $question_index, $last_score);
+        UPSERT INTO `quiz_state` (`user_id`, `question_index`, `last_score`, `user_name`)
+        VALUES ($user_id, $question_index, $last_score, $user_name);
     """
 
     execute_update_query(
@@ -92,6 +94,7 @@ async def update_quiz_index(user_id, question_index, score):
         user_id=user_id,
         question_index=question_index,
         last_score=score,
+        user_name=str(user_name),
     )
 
 
@@ -118,7 +121,7 @@ async def get_quiz_statistics(user_id):
     result_list = []
 
     get_users_score = f"""
-        SELECT user_id, last_score
+        SELECT user_id, last_score, user_name
         FROM `quiz_state`
         ORDER BY last_score DESC
     """
@@ -133,7 +136,12 @@ async def get_quiz_statistics(user_id):
         if results[i]["user_id"] is None:
             continue
         else:
-            result_list.append([results[i]["user_id"], results[i]["last_score"]])
+            if results[i]["user_name"] is None:
+                user_name = results[i]["user_id"]
+            else:
+                user_name = results[i]["user_name"]
+
+            result_list.append([user_name, results[i]["last_score"]])
 
     return result_list
 
