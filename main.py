@@ -9,7 +9,7 @@ nest_asyncio.apply()
 logging.basicConfig(level=logging.INFO)
 
 # t.me/Quantum_Quiz_bot
-API_TOKEN = '7736539085:AAGoV32t_3j5960cAR88vFjmkHXAARmEDn8'
+API_TOKEN = '7736539086:AAGoV32t_3j5960cAR88vFjmkHXAARmEDn9'
 
 # Объект бота
 bot = Bot(token=API_TOKEN)
